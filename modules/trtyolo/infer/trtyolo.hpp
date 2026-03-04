@@ -564,6 +564,23 @@ public:
     std::vector<DetectRes> predict(const std::vector<Image>& images);
 };
 
+/**
+ * @brief YOLOv26 detection model class, output format [batch, 300, 6] per row [x1, y1, x2, y2, conf, class_id], no NMS needed
+ */
+class TRTYOLOAPI DetectV26Model : public BaseModel {
+public:
+    DetectV26Model();
+    ~DetectV26Model();
+
+    explicit DetectV26Model(const std::string& trt_engine_file, const InferOption& infer_option);
+
+    std::unique_ptr<DetectV26Model> clone() const;
+
+    DetectRes predict(const Image& image);
+
+    std::vector<DetectRes> predict(const std::vector<Image>& images);
+};
+
 class TRTYOLOAPI OBBModel : public BaseModel {
 public:
     // 私有的无参构造函数，仅在 clone 方法中使用

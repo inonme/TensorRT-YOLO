@@ -257,7 +257,61 @@ public:
         return result;
     }
 
-    // OBBModel 的后处理方法实现
+    // YOLOv26 post-processing: output tensor is [batch, 300, 6] with [x1, y1, x2, y2, conf, class_id]
+    DetectRes postProcessDetectV26(int idx) {
+        auto& out_tensor = backend_->tensor_infos[1];
+        int   max_dets   = out_tensor.shape.d[1];  // 300
+        int   det_size   = out_tensor.shape.d[2];   // 6
+
+        // debug: print output tensor info
+        std::cerr << "[DetectV26] output tensor name: " << out_tensor.name
+                  << " shape: [" << out_tensor.shape.d[0];
+        for (int d = 1; d < out_tensor.shape.nbDims; ++d) {
+            std::cerr << ", " << out_tensor.shape.d[d];
+        }
+        std::cerr << "] max_dets: " << max_dets << " det_size: " << det_size << std::endl;
+
+        float* output = static_cast<float*>(out_tensor.buffer->host()) + idx * max_dets * det_size;
+
+        DetectRes result;
+
+        auto& transform = backend_->infer_config.input_shape.has_value()
+                              ? backend_->transforms.front()
+                              : backend_->transforms[idx];
+
+        for (int i = 0; i < max_dets; ++i) {
+            int   base  = i * det_size;
+            float left   = output[base + 0];
+            float top    = output[base + 1];
+            float right  = output[base + 2];
+            float bottom = output[base + 3];
+            float conf   = output[base + 4];
+            int   cls    = static_cast<int>(output[base + 5]);
+
+            // skip low-confidence or padding detections
+            if (conf <= 0.0f) continue;
+
+            // debug: print each valid detection before transform
+            std::cerr << "[DetectV26] raw det[" << i << "] box=("
+                      << left << ", " << top << ", " << right << ", " << bottom
+                      << ") conf=" << conf << " cls=" << cls << std::endl;
+
+            transform.apply(left, top, &left, &top);
+            transform.apply(right, bottom, &right, &bottom);
+
+            result.boxes.emplace_back(Box{left, top, right, bottom});
+            result.scores.push_back(conf);
+            result.classes.push_back(cls);
+        }
+        result.num = result.boxes.size();
+
+        // debug: print total valid detections
+        std::cerr << "[DetectV26] total valid detections: " << result.num << std::endl;
+
+        return result;
+    }
+
+    // OBBModel post-processing
     OBBRes postProcessOBB(int idx) {
         auto& num_tensor   = backend_->tensor_infos[1];
         auto& box_tensor   = backend_->tensor_infos[2];
@@ -480,6 +534,34 @@ std::vector<DetectRes> DetectModel::predict(const std::vector<Image>& images) {
 }
 
 DetectRes DetectModel::predict(const Image& image) {
+    return predict(std::vector<Image>{image}).front();
+}
+
+DetectV26Model::DetectV26Model()  = default;
+DetectV26Model::~DetectV26Model() = default;
+
+DetectV26Model::DetectV26Model(const std::string& trt_engine_file, const InferOption& infer_option)
+    : BaseModel(trt_engine_file, infer_option) {}
+
+std::unique_ptr<DetectV26Model> DetectV26Model::clone() const {
+    auto clone_model   = std::make_unique<DetectV26Model>();
+    clone_model->impl_ = impl_->clone();
+    return clone_model;
+}
+
+std::vector<DetectRes> DetectV26Model::predict(const std::vector<Image>& images) {
+    auto processImages = [this](size_t num) -> std::vector<DetectRes> {
+        std::vector<DetectRes> results(num);
+        for (size_t idx = 0; idx < num; ++idx) {
+            results[idx] = this->impl_->postProcessDetectV26(idx);
+        }
+        return results;
+    };
+
+    return impl_->withPerformanceReport<decltype(processImages), std::vector<DetectRes>>(images, processImages);
+}
+
+DetectRes DetectV26Model::predict(const Image& image) {
     return predict(std::vector<Image>{image}).front();
 }
 
