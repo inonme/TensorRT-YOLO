@@ -264,12 +264,12 @@ public:
         int   det_size   = out_tensor.shape.d[2];   // 6
 
         // debug: print output tensor info
-        std::cerr << "[DetectV26] output tensor name: " << out_tensor.name
-                  << " shape: [" << out_tensor.shape.d[0];
-        for (int d = 1; d < out_tensor.shape.nbDims; ++d) {
-            std::cerr << ", " << out_tensor.shape.d[d];
-        }
-        std::cerr << "] max_dets: " << max_dets << " det_size: " << det_size << std::endl;
+        // std::cerr << "[DetectV26] output tensor name: " << out_tensor.name
+        //           << " shape: [" << out_tensor.shape.d[0];
+        // for (int d = 1; d < out_tensor.shape.nbDims; ++d) {
+        //     std::cerr << ", " << out_tensor.shape.d[d];
+        // }
+        // std::cerr << "] max_dets: " << max_dets << " det_size: " << det_size << std::endl;
 
         float* output = static_cast<float*>(out_tensor.buffer->host()) + idx * max_dets * det_size;
 
@@ -292,9 +292,9 @@ public:
             if (conf <= 0.0f) continue;
 
             // debug: print each valid detection before transform
-            std::cerr << "[DetectV26] raw det[" << i << "] box=("
-                      << left << ", " << top << ", " << right << ", " << bottom
-                      << ") conf=" << conf << " cls=" << cls << std::endl;
+            // std::cerr << "[DetectV26] raw det[" << i << "] box=("
+            //           << left << ", " << top << ", " << right << ", " << bottom
+            //           << ") conf=" << conf << " cls=" << cls << std::endl;
 
             transform.apply(left, top, &left, &top);
             transform.apply(right, bottom, &right, &bottom);
@@ -306,7 +306,7 @@ public:
         result.num = result.boxes.size();
 
         // debug: print total valid detections
-        std::cerr << "[DetectV26] total valid detections: " << result.num << std::endl;
+        // std::cerr << "[DetectV26] total valid detections: " << result.num << std::endl;
 
         return result;
     }
