@@ -179,6 +179,24 @@ public:
         return backend_->max_shape.x;
     }
 
+    size_t numOutputTensors() const {
+        return backend_->tensor_infos.size();
+    }
+
+    void debugTensorInfos() const {
+        std::cerr << "[DetectModel] tensor_infos count: " << backend_->tensor_infos.size() << std::endl;
+        for (size_t i = 0; i < backend_->tensor_infos.size(); ++i) {
+            auto& t = backend_->tensor_infos[i];
+            std::cerr << "  [" << i << "] name=\"" << t.name << "\" "
+                      << (t.input ? "input" : "output") << " shape=[";
+            for (int d = 0; d < t.shape.nbDims; ++d) {
+                if (d > 0) std::cerr << ", ";
+                std::cerr << t.shape.d[d];
+            }
+            std::cerr << "]" << std::endl;
+        }
+    }
+
     // 装饰器函数
     template <typename Func, typename ReturnType>
     ReturnType withPerformanceReport(const std::vector<Image>& images, Func func) {
@@ -512,7 +530,9 @@ DetectModel::DetectModel()  = default;
 DetectModel::~DetectModel() = default;
 
 DetectModel::DetectModel(const std::string& trt_engine_file, const InferOption& infer_option)
-    : BaseModel(trt_engine_file, infer_option) {}
+    : BaseModel(trt_engine_file, infer_option) {
+    impl_->debugTensorInfos();
+}
 
 std::unique_ptr<DetectModel> DetectModel::clone() const {
     auto clone_model   = std::make_unique<DetectModel>();
@@ -523,8 +543,9 @@ std::unique_ptr<DetectModel> DetectModel::clone() const {
 std::vector<DetectRes> DetectModel::predict(const std::vector<Image>& images) {
     auto processImages = [this](size_t num) -> std::vector<DetectRes> {
         std::vector<DetectRes> results(num);
+        bool is_v26 = this->impl_->numOutputTensors() == 2;
         for (size_t idx = 0; idx < num; ++idx) {
-            results[idx] = this->impl_->postProcessDetect(idx);
+            results[idx] = is_v26 ? this->impl_->postProcessDetectV26(idx) : this->impl_->postProcessDetect(idx);
         }
         return results;
     };
